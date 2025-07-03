@@ -17,8 +17,16 @@ build: clean nrpe-data-exporter
 
 # Compile main executable
 nrpe-data-exporter: nrpe-data-exporter.pl
-	docker run --rm -it -v "$$PWD":/src --name rocky9builder rockylinux:9 bash -c "cd /src && ./install-deps.sh && ./build.sh"
+	docker run --rm -it -v "$$PWD":/src --name rocky9builder rockylinux:9 bash -c "cd /src && ./build.sh"
 
 # Clean up
 clean:
-	-rm nrpe-data-exporter
+	-rm -f nrpe-data-exporter
+
+# Apply Perl formating rules
+tidy:
+	perltidy -pro=perltidyrc *.pl
+
+# Do a syntax check
+syntax:
+	source ./activate && for i in *.pl; do perl -c "$$i"; done

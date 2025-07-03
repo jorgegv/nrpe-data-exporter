@@ -1,4 +1,6 @@
+Modern::Perl
 Nagios::NRPE
 PAR::Packer
 Log::Log4perl
-Dancer2
+HTTP::Server::Simple
+CGI
