@@ -10,19 +10,23 @@ use Log::Log4perl;
 use HTTP::Server::Simple::CGI;
 use CGI;
 
+my $log_level = 'DEBUG';
 my $default_nrpe_cfg_file       = "/etc/nagios/nrpe.cfg";
 my $default_prometheus_port     = 9100;
 my $default_max_check_processes = 5;
 my $exename                     = basename( $0 );
+my $hostname                    = `hostname -s`;
+chomp( $hostname );
 
 ## Configure logging
-my $log4perl_conf = q(
-    log4perl.rootLogger=INFO, SCREEN
+my $log4perl_conf = <<"LOG4PERL_CONF"
+    log4perl.rootLogger=$log_level, SCREEN
     log4perl.appender.SCREEN = Log::Log4perl::Appender::Screen
-    log4perl.appender.SCREEN.stderr = 0
+    log4perl.appender.SCREEN.stderr = 1
     log4perl.appender.SCREEN.layout=PatternLayout
     log4perl.appender.SCREEN.layout.ConversionPattern=%d %C %p: %m%n
-);
+LOG4PERL_CONF
+;
 Log::Log4perl::init( \$log4perl_conf );
 my $logger = Log::Log4perl->get_logger;
 
@@ -44,7 +48,7 @@ EOF_HELP
 
 ## Process config file and get check names
 sub get_nrpe_checks {
-    return qw( check_load check_cpu check_disk check_mem );
+    return qw( check_load check_cpu check_disk_root check_mem );
 }
 
 sub _get_nrpe_checks {
@@ -64,6 +68,14 @@ sub _get_nrpe_checks {
     return @checks;
 }
 
+# trims leading and triling whitespace
+sub trim {
+    my $txt = shift;
+    $txt =~ s/^\s+//g;
+    $txt =~ s/\s+$//g;
+    return $txt;
+}
+
 # runs a given check and transforms the results to Prometheus metrics
 sub nrpe_check_to_prometheus {
     my $check  = shift;
@@ -72,13 +84,25 @@ sub nrpe_check_to_prometheus {
         check => $check,
         ssl   => 1
     );
-    my $response  = $client->run();
-    my $nrpe_data = $response->{'buffer'};
+    my $response    = $client->run();
+    $logger->debug( "NRPE response: " . Dumper( $response ) );
+    my $nrpe_data   = $response->{'buffer'};
+    my $nrpe_status = $response->{'result_code'};
 
     # process nrpe_data and return prometheus lines
     my @prom_lines;
-    push @prom_lines, "Testing /metrics for $check...";    # FIX: remove
-                                                           # ...
+
+    # push out the lines for check status
+    push @prom_lines, sprintf( '# HELP nrpe_%s NRPE check %s for host %s', $check, $check, $hostname );
+    push @prom_lines, sprintf( '# TYPE nrpe_%s gauge',  $check );
+    push @prom_lines, sprintf( 'nrpe_%s{host="%s"} %d', $check, $hostname, $nrpe_status );
+
+    if ( $nrpe_data =~ /\|(.*)/ ) {
+        my $perfdata = trim( $1 );
+        $logger->debug( "Perfdata: " . $perfdata );
+        # process perf data...
+    }
+
     return @prom_lines;
 }
 

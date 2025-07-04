@@ -28,5 +28,5 @@ tidy:
 	perltidy -pro=perltidyrc *.pl
 
 # Do a syntax check
-syntax:
+check:
 	source ./activate && for i in *.pl; do perl -c "$$i"; done
